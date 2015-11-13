@@ -198,12 +198,22 @@ func main() {
 	flag.Var(&supportedProviders, "rootFSProvider", "List of RootFS providers")
 	flag.Parse()
 
+	preloadedRootFSes := []string{}
+	for k := range stackMap {
+		preloadedRootFSes = append(preloadedRootFSes, k)
+	}
+
 	cf_http.Initialize(*communicationTimeout)
 
 	clock := clock.NewClock()
 	logger, reconfigurableSink := cf_lager.New(*sessionName)
 
-	executorConfiguration := executorConfig()
+	var executorConfiguration executorinit.Configuration
+	if len(preloadedRootFSes) == 0 {
+		executorConfiguration = executorConfig("")
+	} else {
+		executorConfiguration = executorConfig(stackMap[preloadedRootFSes[0]])
+	}
 	if !executorinit.ValidateExecutor(logger, executorConfiguration) {
 		os.Exit(1)
 	}
@@ -244,11 +254,6 @@ func main() {
 	bbsClient := initializeBBSClient(logger)
 	httpServer, address := initializeServer(bbsClient, executorClient, evacuatable, evacuationReporter, logger, rep.StackPathMap(stackMap), supportedProviders)
 	opGenerator := generator.New(*cellID, bbsClient, executorClient, evacuationReporter, uint64(evacuationTimeout.Seconds()))
-
-	preloadedRootFSes := []string{}
-	for k := range stackMap {
-		preloadedRootFSes = append(preloadedRootFSes, k)
-	}
 
 	members := grouper.Members{
 		{"http_server", httpServer},
